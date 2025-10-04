@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเบิกเงินพนักงาน</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="style.css"> 
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
+    <script>
+        // ปรับสี Primary Color ใหม่: โทนน้ำเงิน-กรมท่าที่ดูดี
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6', // Blue-500
+                            600: '#2563eb', // Blue-600
+                            700: '#1d4ed8', // Blue-700
+                            800: '#1e40af', // Blue-800
+                            900: '#1e3a8a', // Blue-900
+                        },
+                        success: { // สำหรับการเบิกเงิน/สถานะที่ดี
+                            50: '#ecfdf5',
+                            500: '#10b981', // Emerald-500
+                            600: '#059669', // Emerald-600
+                        },
+                        warning: { // สำหรับการแจ้งเตือนว่าทำไปแล้ว
+                            50: '#fff7ed',
+                            400: '#fb923c', // Orange-400
+                            500: '#f97316', // Orange-500
+                            800: '#9a3412', // Orange-800
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 min-h-screen font-sans">
+    
+    <div id="connectionStatus" class="fixed top-4 right-4 z-50 transition-all duration-500">
+        <div class="bg-amber-500 text-white px-4 py-2 rounded-xl shadow-lg backdrop-blur-sm">
+            <div class="flex items-center space-x-2">
+                <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                <span class="text-sm font-medium">กำลังเชื่อมต่อ...</span>
+            </div>
+        </div>
+    </div>
+
+<div 
+    id="notification" 
+    class="fixed top-4 left-1/2 -translate-x-1/2 z-[999] hidden transition-all duration-300"
+    >
+</div>
+
+    <div id="loginPage" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md">
+            <div class="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl p-8 border border-gray-100 fade-in">
+                <div class="text-center mb-8">
+                    <div class="bg-primary-700 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
+                        <span class="text-white text-3xl">💰</span>
+                    </div>
+                    <h1 class="text-3xl font-extrabold text-primary-900 mb-2">
+                        ระบบเบิกเงินพนักงาน
+                    </h1>
+                    <p class="text-gray-600 text-sm">กรุณาเข้าสู่ระบบด้วย ID และเบอร์โทรศัพท์</p>
+                </div>
+                
+                <form id="loginForm" class="space-y-6">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-gray-700" for="employeeId">
+                            รหัสพนักงาน
+                        </label>
+                        <input type="text" id="employeeId" required 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 transition-all duration-200 bg-white/70"
+                                placeholder="กรอกรหัสพนักงาน">
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-gray-700" for="phoneNumber">
+                            เบอร์โทรศัพท์
+                        </label>
+                        <input type="tel" id="phoneNumber" required 
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 transition-all duration-200 bg-white/70"
+                                placeholder="กรอกเบอร์โทรศัพท์">
+                    </div>
+                    
+                    <button type="submit" id="loginButton"
+                            class="w-full bg-primary-700 text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-800 transition-all duration-200 shadow-xl transform hover:scale-[1.01]">
+                        เข้าสู่ระบบ
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+<div id="withdrawalPage" class="hidden min-h-screen p-4">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl p-6 md:p-8 fade-in border border-gray-100">
+            
+            <div class="mb-8 pb-6 border-b border-gray-200">
+                
+                <div class="flex justify-end mb-4">
+                    <button id="logoutBtn" 
+                            class="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-600 transition-all duration-200 shadow-md">
+                        ออกจากระบบ
+                    </button>
+                </div>
+
+                <p id="employeeName" class="text-xl md:text-2xl text-primary-700 font-bold mb-4">
+                    สวัสดี, กำลังโหลด...
+                </p>
+                
+                <div class="bg-success-50 p-4 rounded-xl border-l-4 border-success-600 shadow-inner">
+                    <p class="text-sm text-gray-600 mb-1">รอบเบิกเงินประจำวันที่</p>
+                    <p class="text-xl md:text-2xl font-bold text-success-700">
+                        <span id="currentWithdrawalDate">กำลังโหลด...</span>
+                    </p>
+                </div>
+                
+            </div>
+            
+            <div id="withdrawalForm" class="space-y-6">
+                <div>
+                    <label class="block text-lg font-semibold text-gray-700 mb-4" for="withdrawAmount">
+                        จำนวนเงินที่ต้องการเบิก (บาท)
+                    </label>
+                    <div class="relative">
+                        <input type="number" id="withdrawAmount" required min="1" 
+                                class="w-full px-6 py-4 border-2 border-success-300 rounded-xl focus:ring-4 focus:ring-success-100 focus:border-success-500 text-3xl font-mono text-center bg-success-50/50 transition-all duration-200"
+                                placeholder="0">
+                        <div class="absolute right-4 top-1/2 -translate-y-1/2 text-success-600 font-semibold text-xl">
+                            บาท
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="submitWithdrawal" 
+                        class="w-full bg-success-600 text-white py-4 rounded-xl font-bold hover:bg-success-700 transition-all duration-200 text-xl shadow-lg transform hover:scale-[1.01]">
+                    <span class="flex items-center justify-center space-x-2">
+                        <span>ส่งคำขอเบิกเงิน</span>
+                    </span>
+                </button>
+            </div>
+            
+            <div id="alreadyWithdrawn" class="hidden"> 
+                <div class="bg-warning-50 border-2 border-warning-400 rounded-2xl p-6 text-center shadow-md">
+                    <div class="text-warning-500 text-6xl mb-4">⚠️</div>
+                    <h3 class="text-xl font-bold text-warning-800 mb-2">คุณได้ทำการเบิกเงินไปแล้ว</h3>
+                    <p class="text-warning-700 mb-3 text-sm">คำขอเบิกเงินของคุณได้รับการบันทึกแล้ว</p>
+                    <div class="bg-white/60 rounded-xl p-3 inline-block shadow-inner">
+                        <p class="text-2xl font-bold text-warning-800" id="withdrawnAmount"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div id="adminPage" class="hidden min-h-screen p-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl p-6 md:p-8 fade-in border border-gray-100">
+                
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 pb-6 border-b border-gray-200 space-y-4 lg:space-y-0">
+                    <h2 class="text-2xl md:text-3xl font-extrabold text-primary-800">
+                        ระบบผู้ดูแล - ข้อมูลการเบิกเงิน
+                    </h2>
+                    <div class="flex flex-wrap gap-2 md:gap-3">
+                        <button id="manageEmployeesBtn" 
+                                class="bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700 transition-all duration-200 font-medium shadow-md text-sm">
+                            👤 จัดการพนักงาน
+                        </button>
+                        <button id="refreshAdminData" 
+                                class="bg-primary-600 text-white px-4 py-2 rounded-xl hover:bg-primary-700 transition-all duration-200 font-medium shadow-md text-sm">
+                            🔄 โหลดข้อมูลใหม่
+                        </button>
+                        <button id="downloadExcel" 
+                                class="bg-success-600 text-white px-4 py-2 rounded-xl hover:bg-success-700 transition-all duration-200 font-medium shadow-md text-sm">
+                            📑 ดาวน์โหลด Excel
+                        </button>
+                        <button id="adminLogout" 
+                                class="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 transition-all duration-200 font-medium shadow-md text-sm">
+                            🚪 ออกจากระบบ
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-primary-50 border border-primary-200 rounded-2xl p-6 shadow-lg transition-all duration-200 hover:shadow-xl">
+                        <h3 class="font-bold text-primary-800 mb-4 text-lg flex items-center">
+                            <span class="mr-2">⚙️</span>
+                            สถานะระบบ
+                        </h3>
+                        <div class="flex items-center justify-between">
+                            <span id="systemStatus" class="text-lg font-bold text-primary-700">กำลังตรวจสอบ...</span>
+                            <button id="toggleSystem" 
+                                    class="px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg bg-gray-300 text-gray-800">
+                                กำลังโหลด...
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-success-50 border border-success-200 rounded-2xl p-6 shadow-lg transition-all duration-200 hover:shadow-xl">
+                        <h3 class="font-bold text-success-800 mb-4 text-lg flex items-center">
+                            <span class="mr-2">📅</span>
+                            รอบเบิกเงินปัจจุบัน
+                        </h3>
+                        <div class="flex justify-between items-center">
+                            <span id="displayCurrentWithdrawalDate" class="text-xl font-bold text-success-700">--/--/----</span>
+                            <button id="editCurrentWithdrawalDateBtn" 
+                                    class="bg-success-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-success-700 transition-all duration-200 shadow-md text-sm">
+                                แก้ไข
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-red-50 border border-red-200 rounded-2xl p-6 shadow-lg transition-all duration-200 hover:shadow-xl">
+                        <h3 class="font-bold text-red-800 mb-4 text-lg flex items-center">
+                            <span class="mr-2">🔄</span>
+                            รีเซ็ตข้อมูล
+                        </h3>
+                        <button id="resetWithdrawals" 
+                                class="bg-red-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition-all duration-200 shadow-md text-sm w-full">
+                            รีเซ็ตการเบิกเงินทั้งหมด
+                        </button>
+                    </div>
+                    
+                    <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 shadow-lg transition-all duration-200 hover:shadow-xl">
+                        <h3 class="font-bold text-indigo-800 mb-4 text-lg flex items-center">
+                            <span class="mr-2">📊</span>
+                            สถิติการเบิกเงิน
+                        </h3>
+                        <div class="space-y-3 text-indigo-700">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm">พนักงานที่เบิกแล้ว:</span>
+                                <span id="withdrawnCount" class="font-bold text-xl text-indigo-800">0</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm">ยอดรวมทั้งหมด:</span>
+                                <span id="totalAmountSummary" class="font-bold text-xl text-indigo-800">0 ฿</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-4 text-left font-bold text-gray-700 text-sm border-b border-gray-200">ID</th>
+                                    <th class="px-4 py-4 text-left font-bold text-gray-700 text-sm border-b border-gray-200">ชื่อพนักงาน</th>
+                                    <th class="px-4 py-4 text-right font-bold text-gray-700 text-sm border-b border-gray-200">จำนวนเงิน (฿)</th>
+                                    <th class="px-4 py-4 text-left font-bold text-gray-700 text-sm border-b border-gray-200">วันที่เบิก (รอบ)</th>
+                                    <th class="px-4 py-4 text-left font-bold text-gray-700 text-sm border-b border-gray-200">เวลายื่นคำขอ</th>
+                                    <th class="px-4 py-4 text-center font-bold text-gray-700 text-sm border-b border-gray-200">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="withdrawalTable">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                                        <div class="flex items-center justify-center space-x-2">
+                                            <div class="animate-spin rounded-full h-5 w-5 border-2 border-primary-500 border-t-transparent"></div>
+                                            <span>กำลังโหลดข้อมูล...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="bg-primary-50 px-6 py-4 border-t border-gray-200">
+                        <p id="totalAmount" class="text-xl font-extrabold text-center text-primary-700">ยอดรวม: 0.00 บาท</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="manageEmployeesModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl p-8 max-w-4xl w-full fade-in shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold text-primary-800 mb-6 pb-4 border-b border-gray-200 flex items-center">
+                <span class="mr-3">👥</span>
+                จัดการข้อมูลพนักงาน
+            </h3>
+            
+            <div class="bg-primary-50 rounded-2xl p-6 mb-6 border border-primary-200 shadow-inner">
+                <h4 class="font-semibold text-primary-700 mb-4 flex items-center">
+                    <span class="mr-2">➕</span>
+                    เพิ่มพนักงานใหม่
+                </h4>
+                <form id="addEmployeeForm" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="text" id="newEmpId" required placeholder="รหัสพนักงาน (ID)" 
+                            class="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 transition-all duration-200">
+                    <input type="text" id="newEmpName" required placeholder="ชื่อพนักงาน" 
+                            class="md:col-span-2 px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 transition-all duration-200">
+                    <input type="tel" id="newEmpPhone" required placeholder="เบอร์โทรศัพท์" 
+                            class="px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 transition-all duration-200">
+                    <button type="submit" 
+                            class="md:col-span-4 bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-all duration-200 shadow-lg">
+                        เพิ่มพนักงานใหม่
+                    </button>
+                </form>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div class="max-h-80 overflow-y-auto">
+                    <table class="w-full">
+                        <thead class="sticky top-0 bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 border-b border-gray-200">ID</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 border-b border-gray-200">ชื่อ</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 border-b border-gray-200">เบอร์โทร</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-600 border-b border-gray-200">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeListTable">
+                            <tr>
+                                <td colspan="4" class="text-center py-8 text-gray-500">
+                                    <div class="flex items-center justify-center space-x-2">
+                                        <div class="animate-spin rounded-full h-5 w-5 border-2 border-primary-500 border-t-transparent"></div>
+                                        <span>กำลังโหลดข้อมูล...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-6 text-right">
+                <button id="closeManageEmployeesModal" 
+                        class="bg-gray-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-600 transition-all duration-200 shadow-lg">
+                    ปิด
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="successModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl p-8 max-w-md w-full text-center fade-in shadow-2xl border border-gray-100">
+            <div class="text-success-500 text-8xl mb-6">🎉</div>
+            <h3 class="text-3xl font-bold text-gray-800 mb-3">เบิกเงินสำเร็จ!</h3>
+            <p class="text-gray-600 mb-8 text-lg">คำขอเบิกเงินของคุณได้รับการบันทึกเรียบร้อยแล้ว</p>
+            <button id="closeModal" 
+                    class="bg-success-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-success-700 transition-all duration-200 shadow-lg">
+                ตกลง
+            </button>
+        </div>
+    </div>
+
+    <div id="editDateModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-95 opacity-0 border border-gray-100" id="dateModalContent">
+            <div class="p-8">
+                <h3 class="text-2xl font-bold mb-6 text-primary-800 pb-4 border-b border-gray-200 flex items-center">
+                    <span class="mr-3">📅</span>
+                    กำหนดรอบเบิกเงินประจำวัน
+                </h3>
+                <form id="setDateForm">
+                    <div class="mb-8">
+                        <label for="newDateInput" class="block text-gray-700 font-semibold mb-3">วันที่รอบเบิกเงิน:</label>
+                        <input type="date" id="newDateInput" required 
+                               class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 transition-all duration-200 text-lg">
+                        <p class="text-sm text-gray-500 mt-2">เดือน/วันที่/ปี (ระบบแสดงเป็นค.ศ. สากล)</p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
+                        <button type="button" id="closeDateModal" 
+                                class="bg-gray-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-600 transition-all duration-200 shadow-lg">
+                            ยกเลิก
+                        </button>
+                        <button type="submit" 
+                                class="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-700 transition-all duration-200 shadow-lg">
+                            บันทึกวันที่
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div id="confirmationModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center z-[60] transition-opacity">
+        <div id="confirmModalContent" class="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm transform transition-all duration-300 scale-100 opacity-100 border border-gray-100">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <span class="text-warning-500 text-3xl mr-2">⚠️</span>
+                ยืนยันการดำเนินการ
+            </h3>
+            <p id="confirmMessage" class="text-gray-700 mb-6 break-words"></p>
+            <div class="flex justify-end space-x-3">
+                <button id="cancelActionBtn" type="button" class="px-5 py-2 bg-gray-300 text-gray-800 rounded-xl hover:bg-gray-400 font-medium transition-colors shadow-md">
+                    ยกเลิก
+                </button>
+                <button id="confirmActionBtn" type="button" class="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-medium transition-colors shadow-md">
+                    ยืนยัน
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

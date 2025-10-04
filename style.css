@@ -1,0 +1,88 @@
+/* style.css */
+
+/* ------------------------------------------- */
+/* BASE STYLES AND RESETS */
+/* ------------------------------------------- */
+
+/* ใช้ฟอนต์ที่เป็นระบบและอ่านง่าย */
+body {
+    box-sizing: border-box;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Thai", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ------------------------------------------- */
+/* FADE-IN ANIMATION (ให้ดูนุ่มนวลและมีสไตล์) */
+/* ------------------------------------------- */
+
+.fade-in {
+    /* ใช้ animation name เดียวกัน */
+    animation: fadeIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
+}
+
+@keyframes fadeIn {
+    from { 
+        opacity: 0; 
+        transform: translateY(20px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+
+/* ------------------------------------------- */
+/* CUSTOM TABLE BORDER STYLE */
+/* ------------------------------------------- */
+
+/* ใช้กับตารางรายการพนักงานใน Modal จัดการพนักงานเท่านั้น (employeeListTable) */
+#employeeListTable td, #employeeListTable th {
+    border-bottom: 1px solid #e5e7eb; /* gray-200 */
+}
+
+/* ------------------------------------------- */
+/* ENHANCED FOCUS RING FOR INPUTS */
+/* ------------------------------------------- */
+
+/* ทำให้ focus ring ดูเด่นขึ้นและเป็นมาตรฐานเดียวกัน */
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    /* ใช้ Primary-500 (Blue) เป็นสีหลักของ Focus */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5); 
+    border-color: #3b82f6; 
+}
+
+/* Overriding for withdrawal amount input (ใช้สี success) */
+#withdrawAmount:focus {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5); /* Emerald-500 with opacity */
+    border-color: #10b981; 
+}
+
+/* ------------------------------------------- */
+/* REFINEMENT: ALREADY WITHDRAWN SECTION (ตามที่ต้องการ) */
+/* ------------------------------------------- */
+
+#alreadyWithdrawn .bg-warning-50 {
+    /* ปรับ padding ในส่วนนี้ให้นุ่มนวล */
+    padding: 2rem; /* p-8 ใน HTML เดิมถูกลดเป็น p-6 */
+}
+
+/* ปรับขนาดตัวเลขที่เบิกไปแล้วให้เล็กลง */
+#alreadyWithdrawn #withdrawnAmount {
+    font-size: 2rem; /* text-3xl เดิม -> ปรับเป็น 2xl ใน HTML ใหม่ */
+    line-height: 2.25rem;
+    font-weight: 800;
+    color: #9a3412; /* warning-800 */
+}
+
+#alreadyWithdrawn .bg-white\/60 {
+    /* ปรับ padding ของกล่องตัวเลข */
+    padding: 0.75rem 1.5rem; /* p-3 ใน HTML ใหม่ */
+    display: inline-block;
+}
+
+/* ปรับขนาดหัวข้อ */
+#alreadyWithdrawn .text-xl {
+    font-size: 1.5rem; /* 24px - เพื่อให้ยังดูเด่นแต่ไม่ใหญ่เกินไป */
+}
