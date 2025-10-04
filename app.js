@@ -18,6 +18,9 @@ let employeeData = [];
 let db = null;
 let firebaseInitialized = false;
 
+// 🔴 เพิ่มตัวแปร Global สำหรับควบคุม Timer
+let autoLogoutTimer = null;
+
 // Local Storage Keys
 const LS_USER_KEY = 'currentEmployee';
 const LS_ADMIN_KEY = 'isAdmin';
@@ -111,7 +114,7 @@ function showNotification(message, type = 'info') {
 
     notification.innerHTML = `
         <div class="${bgColor} text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transform scale-100 opacity-100 transition-all duration-300">
-          
+            
         <span class="text-xl"></span>
             <span class="font-medium whitespace-nowrap">${message}</span>
         </div>
@@ -231,9 +234,9 @@ async function initializeSampleData() {
         const employeesSnapshot = await db.collection('employees').limit(1).get();
         if (employeesSnapshot.empty) {
              const sampleEmployees = [
-                 { id: '001', name: 'สมชาย ใจดี', phone: '0929604003' },
-                 { id: '002', name: 'สมหญิง รักงาน', phone: '0812345678' },
-                 { id: '003', name: 'วิชัย ขยันทำงาน', phone: '0987654321' }
+                { id: '001', name: 'สมชาย ใจดี', phone: '0929604003' },
+                { id: '002', name: 'สมหญิง รักงาน', phone: '0812345678' },
+                { id: '003', name: 'วิชัย ขยันทำงาน', phone: '0987654321' }
              ];
 
              const batch = db.batch();
@@ -323,11 +326,21 @@ async function loadCurrentWithdrawalDate() {
     }
 }
 
+// 🔴 ฟังก์ชันสำหรับล้าง Timer เดิม (หากมี)
+function clearAutoLogoutTimer() {
+    if (autoLogoutTimer) {
+        clearTimeout(autoLogoutTimer);
+        autoLogoutTimer = null;
+    }
+}
+
 
 // --- Navigation and Logout ---
 
 function logout() {
     clearLoginState();
+    // 💡 ล้าง Timer เมื่อทำการ Logout ทุกครั้ง
+    clearAutoLogoutTimer();
     currentEmployee = null;
     isAdmin = false;
     withdrawalData = [];
@@ -350,6 +363,9 @@ function logout() {
 // --- Employee/Admin Pages ---
 
 async function showWithdrawalPage() {
+    // 💡 ล้าง Timer เก่าทุกครั้งที่เข้าหน้าใหม่
+    clearAutoLogoutTimer(); 
+    
     loginPage.classList.add('hidden');
     adminPage.classList.add('hidden');
     withdrawalPage.classList.remove('hidden');
@@ -381,7 +397,32 @@ async function showWithdrawalPage() {
             document.getElementById('alreadyWithdrawn').querySelector('p').textContent = 
                 `คำขอเบิกเงินของคุณได้รับการบันทึกแล้ว${dateText}`;
             
+            // 🟥 เพิ่ม Logic การบังคับ Logout อัตโนมัติ:
+            // หากพนักงานอยู่ที่หน้า "เบิกเงินไปแล้ว" ให้ตั้งเวลา Logout ทันที
+            
+            const LOGOUT_DELAY = 10000; // 10 วินาที
+            const MESSAGE_1_DELAY = 1000; // 1 วินาที (ตามที่คุณต้องการ)
+
+            // 1. แสดงข้อความแรกทันที
+            showNotification('คุณได้ทำการเบิกเงินแล้ว', 'info'); 
+
+            // 2. หน่วงเวลา 1 วินาที แล้วแสดงข้อความที่สอง
+            //    ใช้ LOGOUT_DELAY / 1000 เพื่อให้ได้ค่า '10' วินาที
+            setTimeout(() => {
+                showNotification(`กำลังออกจากระบบอัตโนมัติใน ${LOGOUT_DELAY / 1000} วินาที`, 'info'); 
+            }, MESSAGE_1_DELAY); // หน่วง 1 วินาที
+
+            // 3. เริ่ม Timer นับถอยหลัง 10 วินาที เพื่อบังคับ Logout
+            autoLogoutTimer = setTimeout(() => {
+                if (loadLoginState() === 'employee') { 
+                    logout(); 
+                    showNotification('ออกจากระบบอัตโนมัติ', 'info');
+                }
+            }, LOGOUT_DELAY); 
+            
         } else {
+            // หากยังไม่เบิกเงิน (อยู่ในหน้าฟอร์ม) ให้ยกเลิก Timer
+            clearAutoLogoutTimer();
             document.getElementById('withdrawalForm').classList.remove('hidden');
             document.getElementById('alreadyWithdrawn').classList.add('hidden');
         }
@@ -518,6 +559,19 @@ document.getElementById('submitWithdrawal').addEventListener('click', async () =
         document.getElementById('submitWithdrawal').textContent = 'ส่งคำขอเบิกเงิน';
     }
 });
+
+// 🔴 แก้ไข: ลบ setTimeout ออกจากที่นี่ เพราะเราย้าย logic ไปไว้ใน showWithdrawalPage() แล้ว
+document.getElementById('closeModal').addEventListener('click', () => {
+    successModal.classList.add('hidden');
+    // การเรียก showWithdrawalPage() นี้จะทำให้ Timer 10 วินาทีเริ่มนับทันที 
+    // เมื่อเข้าสู่หน้าจอที่แสดงสถานะ "เบิกแล้ว" 
+    showWithdrawalPage(); 
+});
+
+
+// --- Admin Logic: System Controls ---
+
+// ... (โค้ดส่วน Admin เหมือนเดิม) ...
 
 document.getElementById('closeModal').addEventListener('click', () => {
     successModal.classList.add('hidden');
